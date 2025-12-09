@@ -78,7 +78,7 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     coordinate_precision: bpy.props.IntProperty(
         name="Precision",
         description="The number of decimal digits to use in coordinates in the file.",
-        default=4,
+        default=9,
         min=0,
         max=12,
     )
