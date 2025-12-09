@@ -550,7 +550,7 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
             row[:3] for row in transformation.transposed()
         )  # Don't convert the 4th column.
         formatted_cells = [
-            self.format_number(cell, 6) for cell in itertools.chain.from_iterable(pieces)
+            f"{cell:.9f}" for cell in itertools.chain.from_iterable(pieces)
         ]
         return " ".join(formatted_cells)
 
@@ -573,19 +573,14 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         y_name = f"{{{MODEL_NAMESPACE}}}y"
         z_name = f"{{{MODEL_NAMESPACE}}}z"
 
+        decimals = self.coordinate_precision
         for vertex in vertices:  # Create the <vertex> elements.
             vertex_element = xml.etree.ElementTree.SubElement(
                 vertices_element, vertex_name
             )
-            vertex_element.attrib[x_name] = self.format_number(
-                vertex.co[0], self.coordinate_precision
-            )
-            vertex_element.attrib[y_name] = self.format_number(
-                vertex.co[1], self.coordinate_precision
-            )
-            vertex_element.attrib[z_name] = self.format_number(
-                vertex.co[2], self.coordinate_precision
-            )
+            vertex_element.attrib[x_name] = f"{vertex.co[0]:.{decimals}}"
+            vertex_element.attrib[y_name] = f"{vertex.co[1]:.{decimals}}"
+            vertex_element.attrib[z_name] = f"{vertex.co[2]:.{decimals}}"
 
     def write_triangles(
         self, mesh_element: xml.etree.ElementTree.Element,
@@ -634,18 +629,3 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
                     if material_index != object_material_list_index:
                         # Not equal to the index that our parent object was written with, so we must override it here.
                         triangle_element.attrib[p1_name] = str(material_index)
-
-    def format_number(self, number: float, decimals: int) -> str:
-        """
-        Properly formats a floating point number to a certain precision.
-
-        This format will never use scientific notation (no 3.14e-5 nonsense) and will have a fixed limit to the number
-        of decimals. It will not have a limit to the length of the integer part. Any trailing zeros are stripped.
-        :param number: A floating point number to format.
-        :param decimals: The maximum number of places after the radix to write.
-        :return: A string representing that number.
-        """
-        formatted = f"{number:.{decimals}f}".rstrip("0").rstrip(".")
-        if formatted == "":
-            return "0"
-        return formatted
