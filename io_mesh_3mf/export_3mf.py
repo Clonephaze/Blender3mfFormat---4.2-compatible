@@ -361,6 +361,7 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
             resources_element, f"{{{MODEL_NAMESPACE}}}object"
         )
         object_element.attrib[f"{{{MODEL_NAMESPACE}}}id"] = str(new_resource_id)
+        object_element.attrib[f"{{{MODEL_NAMESPACE}}}name"] = blender_object.name
 
         metadata = Metadata()
         metadata.retrieve(blender_object)
