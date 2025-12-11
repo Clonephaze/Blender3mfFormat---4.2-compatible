@@ -62,6 +62,11 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         description="Export selected objects only.",
         default=False,
     )
+    export_hidden: bpy.props.BoolProperty(
+        name="Export hidden objects",
+        description="Export objects hidden in the viewport",
+        default=False,
+    )
     global_scale: bpy.props.FloatProperty(
         name="Scale", default=1.0, soft_min=0.001, soft_max=1000.0, min=1e-6, max=1e6
     )
@@ -308,7 +313,7 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
             root, f"{{{MODEL_NAMESPACE}}}build"
         )
         for blender_object in blender_objects:
-            if blender_object.hide_get():
+            if blender_object.hide_get() and not self.export_hidden:
                 # Do not export hidden objects
                 continue
             if blender_object.parent is not None:
