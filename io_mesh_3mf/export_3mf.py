@@ -83,6 +83,16 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         max=12,
     )
 
+    def invoke(self, context, event):
+        """Initialize properties from preferences when the export dialog is opened."""
+        prefs = context.preferences.addons.get(__package__)
+        if prefs and prefs.preferences:
+            self.coordinate_precision = prefs.preferences.default_coordinate_precision
+            self.export_hidden = prefs.preferences.default_export_hidden
+            self.use_mesh_modifiers = prefs.preferences.default_apply_modifiers
+            self.global_scale = prefs.preferences.default_global_scale
+        return super().invoke(context, event)
+
     def safe_report(self, level: Set[str], message: str) -> None:
         """
         Safely report a message, using Blender's report system if available, otherwise just logging.

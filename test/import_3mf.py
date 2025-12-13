@@ -415,14 +415,15 @@ class TestImport3MF(unittest.TestCase):
         # Stuff not considered for this test.
         context = unittest.mock.MagicMock()
         context.scene.unit_settings.scale_length = 0
+        context.scene.unit_settings.length_unit = 'METERS'
         root = xml.etree.ElementTree.Element(f"{{{MODEL_NAMESPACE}}}model")
         root.attrib["unit"] = 'meter'
-        context.scene.unit_settings.length_unit = 'METERS'
 
         self.assertAlmostEqual(
             self.importer.unit_scale(context, root),
             global_scale,
-            "The global scale must be applied directly to the output.")
+            places=5,
+            msg="The global scale must be applied directly to the output.")
 
     def test_unit_scale_scene(self):
         """
@@ -432,17 +433,18 @@ class TestImport3MF(unittest.TestCase):
 
         context = unittest.mock.MagicMock()
         context.scene.unit_settings.scale_length = scene_scale
+        context.scene.unit_settings.length_unit = 'METERS'
 
         # Stuff not considered for this test.
         self.importer.global_scale = 1.0
         root = xml.etree.ElementTree.Element(f"{{{MODEL_NAMESPACE}}}model")
         root.attrib["unit"] = 'meter'
-        context.scene.unit_settings.length_unit = 'METERS'
 
         self.assertAlmostEqual(
             self.importer.unit_scale(context, root),
             1.0 / scene_scale,
-            "The scene scale must be compensated for.")
+            places=5,
+            msg="The scene scale must be compensated for.")
 
     def test_unit_scale_conversion(self):
         """

@@ -81,6 +81,13 @@ class Import3MF(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         name="Scale", default=1.0, soft_min=0.001, soft_max=1000.0, min=1e-6, max=1e6
     )
 
+    def invoke(self, context, event):
+        """Initialize properties from preferences when the import dialog is opened."""
+        prefs = context.preferences.addons.get(__package__)
+        if prefs and prefs.preferences:
+            self.global_scale = prefs.preferences.default_global_scale
+        return super().invoke(context, event)
+
     def safe_report(self, level: Set[str], message: str) -> None:
         """
         Safely report a message, using Blender's report system if available, otherwise just logging.
@@ -428,7 +435,7 @@ class Import3MF(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
             blender_unit = context.scene.unit_settings.length_unit
             blender_unit_to_metre = blender_to_metre[blender_unit]
 
-        threemf_unit = MODEL_DEFAULT_UNIT
+        threemf_unit = root.attrib.get("unit", MODEL_DEFAULT_UNIT)
         threemf_unit_to_metre = threemf_to_metre[threemf_unit]
 
         # Scale from 3MF units to Blender scene units
