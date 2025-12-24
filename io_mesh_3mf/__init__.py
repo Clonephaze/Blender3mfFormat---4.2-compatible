@@ -49,7 +49,8 @@ class ThreeMFPreferences(bpy.types.AddonPreferences):
     # Export defaults
     default_coordinate_precision: bpy.props.IntProperty(
         name="Default Coordinate Precision",
-        description="Default number of decimal digits for coordinates in exported files. Higher values preserve more detail but increase file size",
+        description=("Default number of decimal digits for coordinates in exported files. "
+                     "Higher values preserve more detail but increase file size"),
         default=9,
         min=0,
         max=12,
@@ -79,7 +80,7 @@ class ThreeMFPreferences(bpy.types.AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        
+
         box = layout.box()
         box.label(text="Export Defaults:", icon='EXPORT')
         box.prop(self, "default_coordinate_precision")

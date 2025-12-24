@@ -136,7 +136,10 @@ class TestExport3MF(unittest.TestCase):
 
         # With new logic: scale * (scene_scale / 0.001) where threemf_unit is millimeter (0.001 m)
         # = 1.0 * (0.9 / 0.001) = 1.0 * 900 = 900
-        self.assertEqual(self.exporter.unit_scale(context), 900.0, "The scene scale of 0.9 divided by 3MF unit (0.001m) gives 900.")
+        self.assertEqual(
+            self.exporter.unit_scale(context),
+            900.0,
+            "The scene scale of 0.9 divided by 3MF unit (0.001m) gives 900.")
 
     def test_unit_scale_conversion(self):
         """
@@ -210,8 +213,8 @@ class TestExport3MF(unittest.TestCase):
                 context.scene.unit_settings.length_unit = blender_unit
                 # With new logic: scale * (SCENE_SCALE / 0.001) = scale * (0.001 / 0.001) = scale * 1.0
                 self.assertAlmostEqual(
-                        self.exporter.unit_scale(context),
-                        correct_conversions[blender_unit])
+                    self.exporter.unit_scale(context),
+                    correct_conversions[blender_unit])
 
     def test_write_materials_empty(self):
         """
@@ -943,7 +946,10 @@ class TestExport3MF(unittest.TestCase):
         Tests formatting the identity matrix.
         """
         identity_matrix = mathutils.Matrix.Identity(4)
-        self.assertEqual(self.exporter.format_transformation(identity_matrix), "1.000000000 0.000000000 0.000000000 0.000000000 1.000000000 0.000000000 0.000000000 0.000000000 1.000000000 0.000000000 0.000000000 0.000000000")
+        expected = ("1.000000000 0.000000000 0.000000000 0.000000000 "
+                    "1.000000000 0.000000000 0.000000000 0.000000000 "
+                    "1.000000000 0.000000000 0.000000000 0.000000000")
+        self.assertEqual(self.exporter.format_transformation(identity_matrix), expected)
 
     def test_format_transformation_coordinates(self):
         """

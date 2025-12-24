@@ -616,10 +616,10 @@ class Import3MF(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
                 )
             if "name" in object_node.attrib and "Title" not in metadata:
                 metadata["Title"] = MetadataEntry(
-                        name="Title",
-                        preserve=True,
-                        datatype="xs:string",
-                        value=object_node.attrib.get("name")
+                    name="Title",
+                    preserve=True,
+                    datatype="xs:string",
+                    value=object_node.attrib.get("name")
                 )
 
             metadata["3mf:object_type"] = MetadataEntry(
