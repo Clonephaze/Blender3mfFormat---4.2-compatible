@@ -196,3 +196,71 @@ class TestMetadata(unittest.TestCase):
             2,
             "There were two valid entries: \"hollow\" and \"author\". "
             "\"conflicting\" shouldn't show up at all and there should only be one \"author\".")
+
+    def test_unicode_metadata_name(self):
+        """
+        Test storing and retrieving metadata with Unicode names.
+        """
+        unicode_name = "作者"
+        self.metadata[unicode_name] = io_mesh_3mf.metadata.MetadataEntry(
+            name=unicode_name,
+            preserve=True,
+            datatype="xs:string",
+            value="张三")
+
+        self.assertIn(unicode_name, self.metadata)
+        self.assertEqual(self.metadata[unicode_name].name, unicode_name)
+        self.assertEqual(self.metadata[unicode_name].value, "张三")
+
+    def test_unicode_metadata_value(self):
+        """
+        Test storing and retrieving metadata with Unicode values.
+        """
+        japanese_value = "青いマテリアル"
+        self.metadata["material"] = io_mesh_3mf.metadata.MetadataEntry(
+            name="material",
+            preserve=True,
+            datatype="xs:string",
+            value=japanese_value)
+
+        self.assertEqual(self.metadata["material"].value, japanese_value)
+
+    def test_unicode_metadata_compatibility(self):
+        """
+        Test that Unicode metadata entries are properly compared for compatibility.
+        """
+        korean_value = "테스트 값"
+        self.metadata["테스트"] = io_mesh_3mf.metadata.MetadataEntry(
+            name="테스트",
+            preserve=True,
+            datatype="xs:string",
+            value=korean_value)
+        
+        # Store again with same Unicode value - should be compatible
+        self.metadata["테스트"] = io_mesh_3mf.metadata.MetadataEntry(
+            name="테스트",
+            preserve=True,
+            datatype="xs:string",
+            value=korean_value)
+
+        self.assertIn("테스트", self.metadata)
+        self.assertEqual(self.metadata["테스트"].value, korean_value)
+
+    def test_unicode_metadata_conflict(self):
+        """
+        Test that conflicting Unicode metadata entries are properly detected.
+        """
+        self.metadata["項目"] = io_mesh_3mf.metadata.MetadataEntry(
+            name="項目",
+            preserve=True,
+            datatype="xs:string",
+            value="値一")
+        
+        # Store again with different Unicode value - should conflict
+        self.metadata["項目"] = io_mesh_3mf.metadata.MetadataEntry(
+            name="項目",
+            preserve=True,
+            datatype="xs:string",
+            value="値二")
+
+        self.assertNotIn("項目", self.metadata, "Conflicting Unicode values should not be stored")

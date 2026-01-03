@@ -1190,3 +1190,66 @@ class TestExport3MF(unittest.TestCase):
         self.assertEqual(triangle_elements[2].attrib[f"{{{MODEL_NAMESPACE}}}v1"], "4")
         self.assertEqual(triangle_elements[2].attrib[f"{{{MODEL_NAMESPACE}}}v2"], "2")
         self.assertEqual(triangle_elements[2].attrib[f"{{{MODEL_NAMESPACE}}}v3"], "0")
+
+    def test_write_object_resource_unicode_name(self):
+        """
+        Tests writing an object resource with a Unicode name.
+        
+        This verifies that string caching properly protects Unicode characters
+        from garbage collection.
+        """
+        resources_element = xml.etree.ElementTree.Element(f"{{{MODEL_NAMESPACE}}}resources")
+        blender_object = unittest.mock.MagicMock()
+        blender_object.name = "测试对象"  # Chinese characters
+        blender_object.type = "MESH"
+        blender_object.mode = "OBJECT"
+        blender_object.matrix_world = mathutils.Matrix.Identity(4)
+        blender_object.children = []
+        
+        # Mock the to_mesh method to return None (no mesh data)
+        blender_object.to_mesh = unittest.mock.MagicMock(return_value=None)
+        
+        object_id, transformation = self.exporter.write_object_resource(
+            resources_element, blender_object
+        )
+        
+        # Verify the object was created with the Unicode name
+        object_elements = resources_element.findall(f".//{{{MODEL_NAMESPACE}}}object")
+        self.assertEqual(len(object_elements), 1, "One object should be written")
+        
+        written_name = object_elements[0].attrib.get(f"{{{MODEL_NAMESPACE}}}name")
+        self.assertEqual(written_name, "测试对象", "Unicode name should be preserved")
+
+    def test_write_materials_unicode_name(self):
+        """
+        Tests writing materials with Unicode names.
+        
+        This verifies that material name caching properly protects Unicode
+        characters from garbage collection.
+        """
+        resources_element = xml.etree.ElementTree.Element(f"{{{MODEL_NAMESPACE}}}resources")
+        
+        # Create mock object with Unicode material name
+        blender_object = unittest.mock.MagicMock()
+        material_mock = unittest.mock.MagicMock()
+        material_mock.name = "赤い素材"  # Japanese: "Red material"
+        
+        material_slot = unittest.mock.MagicMock(material=material_mock)
+        blender_object.material_slots = [material_slot]
+        
+        # Mock PrincipledBSDFWrapper to return proper color values
+        mock_wrapper = unittest.mock.MagicMock()
+        mock_wrapper.base_color = [1.0, 0.0, 0.0]  # Use list instead of tuple for indexing
+        mock_wrapper.alpha = 1.0
+        
+        with unittest.mock.patch('io_mesh_3mf.export_3mf.bpy_extras.node_shader_utils.PrincipledBSDFWrapper', return_value=mock_wrapper):
+            name_to_index = self.exporter.write_materials(resources_element, [blender_object])
+        
+        # Verify the Unicode material name is in the index
+        self.assertIn("赤い素材", name_to_index, "Unicode material name should be in index")
+        
+        # Verify it's written to XML
+        base_elements = resources_element.findall(f".//{{{MODEL_NAMESPACE}}}base")
+        if len(base_elements) > 0:
+            written_name = base_elements[0].attrib.get(f"{{{MODEL_NAMESPACE}}}name")
+            self.assertEqual(written_name, "赤い素材", "Unicode material name should be preserved in XML")

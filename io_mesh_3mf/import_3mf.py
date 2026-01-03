@@ -381,8 +381,10 @@ class Import3MF(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
         for files in files_by_content_type.values():
             for file in files:
-                if file.name in preserved_files:
-                    filename = f".3mf_preserved/{file.name}"
+                # Cache file name to protect Unicode characters from garbage collection
+                file_name = str(file.name)
+                if file_name in preserved_files:
+                    filename = f".3mf_preserved/{file_name}"
                     if filename in bpy.data.texts:
                         if (
                             bpy.data.texts[filename].as_string()
@@ -615,11 +617,13 @@ class Import3MF(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
                     value=object_node.attrib["partnumber"],
                 )
             if "name" in object_node.attrib and "Title" not in metadata:
+                # Cache object name from XML to protect Unicode characters from garbage collection
+                object_name = str(object_node.attrib.get("name"))
                 metadata["Title"] = MetadataEntry(
                     name="Title",
                     preserve=True,
                     datatype="xs:string",
-                    value=object_node.attrib.get("name")
+                    value=object_name
                 )
 
             metadata["3mf:object_type"] = MetadataEntry(
@@ -882,7 +886,9 @@ class Import3MF(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
                 # Add the material to Blender if it doesn't exist yet. Otherwise create a new material in Blender.
                 if triangle_material not in self.resource_to_material:
-                    material = bpy.data.materials.new(triangle_material.name)
+                    # Cache material name to protect Unicode characters from garbage collection
+                    material_name = str(triangle_material.name)
+                    material = bpy.data.materials.new(material_name)
                     material.use_nodes = True
                     principled = bpy_extras.node_shader_utils.PrincipledBSDFWrapper(
                         material, is_readonly=False

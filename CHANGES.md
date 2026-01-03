@@ -1,3 +1,27 @@
+1.1.3 — Unicode String Caching & Garbage Collection Protection
+====
+This release adds comprehensive defensive string caching throughout the add-on to protect Unicode characters from Python's garbage collector. This ensures users with non-ASCII characters (Chinese, Japanese, Korean, Arabic, emoji, etc.) in object names, material names, file paths, and metadata will not experience corruption or data loss.
+
+Features
+----
+* **Defensive String Caching:**
+  - Cache all object names, material names, metadata (names, values, datatypes), and file names before XML or export operations to protect Unicode from garbage collection
+  - Explicit `str()` conversion ensures strings persist while Blender's UI or export processes are active
+
+* **Unicode Support Improvements:**
+  - Full support for all non-standard Unicode characters in object names, material names, metadata, and file path
+
+Testing
+----
+* **New comprehensive Unicode test suite** (`tests/test_unicode.py`):
+  - 20+ tests covering Chinese, Japanese, Korean, Arabic, emoji, and mixed Unicode
+  - Tests for object names, material names, metadata, and roundtrip preservation
+  - Tests for edge cases: RTL text, combining characters, surrogate pairs, very long names
+* **Added to mock test suite** (`test/metadata.py`, `test/export_3mf.py`):
+  - 6 new tests for Unicode metadata compatibility and conflict detection
+  - 2 new tests for Unicode object and material name caching
+* All existing tests continue to pass, ensuring backward compatibility
+
 1.1.1 - 1.1.2 — Unit Handling, Precision & Preferences
 ====
 This release refines the modernized addon with improved unit handling, higher-fidelity coordinate export, better object naming, and configurable defaults via addon preferences.

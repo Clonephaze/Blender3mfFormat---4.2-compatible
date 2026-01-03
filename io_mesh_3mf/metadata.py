@@ -160,19 +160,22 @@ class Metadata:
         :param blender_object: The Blender object to store the metadata in.
         """
         for metadata_entry in self.values():
-            name = metadata_entry.name
-            value = metadata_entry.value
+            # Cache metadata name and value to protect Unicode characters from garbage collection
+            name = str(metadata_entry.name)
+            value = str(metadata_entry.value) if metadata_entry.value is not None else ""
             if (
                 name == "Title"
             ):  # Has a built-in ID property for objects as well as scenes.
-                blender_object.name = value if value is not None else ""
+                blender_object.name = value
             elif name == "3mf:partnumber":
                 # Special case: This is always a string and doesn't need the preserve attribute. We can simplify this to
                 # make it easier to edit.
                 blender_object[name] = value
             else:
+                # Cache datatype to protect Unicode characters from garbage collection
+                datatype = str(metadata_entry.datatype) if metadata_entry.datatype is not None else ""
                 blender_object[name] = {
-                    "datatype": metadata_entry.datatype,
+                    "datatype": datatype,
                     "preserve": metadata_entry.preserve,
                     "value": value,
                 }
@@ -188,10 +191,14 @@ class Metadata:
         :param blender_object: A Blender object to retrieve metadata from.
         """
         for key in blender_object.keys():
+            # Cache key to protect Unicode characters from garbage collection
+            cached_key = str(key)
             entry = blender_object[key]
-            if key == "3mf:partnumber":
-                self[key] = MetadataEntry(
-                    name=key, preserve=True, datatype="xs:string", value=entry
+            if cached_key == "3mf:partnumber":
+                # Cache entry value to protect Unicode characters
+                cached_entry = str(entry)
+                self[cached_key] = MetadataEntry(
+                    name=cached_key, preserve=True, datatype="xs:string", value=cached_entry
                 )
                 continue
             if (

@@ -37,8 +37,9 @@ Tests are organized by functionality:
 - **`test_smoke.py`** - Fast smoke tests (8 tests, <2s) - Basic sanity checks
 - **`test_export.py`** - Export functionality (17 tests) - Materials, transformations, archive structure
 - **`test_import.py`** - Import functionality (11 tests) - Import, roundtrips, API compatibility
+- **`test_unicode.py`** - Unicode character handling (20+ tests) - Chinese, Japanese, Korean, emoji support
 
-**Total: 36 integration tests** covering end-to-end workflows
+**Total: 50+ integration tests** covering end-to-end workflows including Unicode support
 
 ## 📁 Test Structure
 
@@ -52,6 +53,7 @@ tests/
 ├── test_smoke.py         # Fast smoke tests
 ├── test_export.py        # Export functionality tests
 ├── test_import.py        # Import functionality tests
+├── test_unicode.py       # Unicode character handling tests
 └── resources/            # Test data files
     ├── only_3dmodel_file.3mf
     ├── corrupt_archive.3mf

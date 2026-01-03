@@ -200,7 +200,8 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
         :param archive: The archive to write files to.
         """
         for textfile in bpy.data.texts:
-            filename = textfile.name
+            # Cache filename to protect Unicode characters from garbage collection
+            filename = str(textfile.name)
             if not filename.startswith(".3mf_preserved/"):
                 continue  # Unrelated file. Not ours to read.
             contents = textfile.as_string()
@@ -264,7 +265,8 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
                 if material is None:
                     continue
 
-                material_name = material.name
+                # Cache material name to protect Unicode characters from garbage collection
+                material_name = str(material.name)
                 if (
                     material_name in name_to_index
                 ):  # Already have this material through another object.
@@ -389,7 +391,9 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
             resources_element, f"{{{MODEL_NAMESPACE}}}object"
         )
         object_element.attrib[f"{{{MODEL_NAMESPACE}}}id"] = str(new_resource_id)
-        object_element.attrib[f"{{{MODEL_NAMESPACE}}}name"] = blender_object.name
+        # Cache object name to protect Unicode characters from garbage collection
+        object_name = str(blender_object.name)
+        object_element.attrib[f"{{{MODEL_NAMESPACE}}}name"] = object_name
 
         metadata = Metadata()
         metadata.retrieve(blender_object)
@@ -549,14 +553,17 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
             metadata_node = xml.etree.ElementTree.SubElement(
                 node, f"{{{MODEL_NAMESPACE}}}metadata"
             )
-            metadata_node.attrib[f"{{{MODEL_NAMESPACE}}}name"] = metadata_entry.name
+            # Cache metadata name and value to protect Unicode characters from garbage collection
+            metadata_name = str(metadata_entry.name)
+            metadata_value = str(metadata_entry.value) if metadata_entry.value is not None else ""
+            metadata_node.attrib[f"{{{MODEL_NAMESPACE}}}name"] = metadata_name
             if metadata_entry.preserve:
                 metadata_node.attrib[f"{{{MODEL_NAMESPACE}}}preserve"] = "1"
             if metadata_entry.datatype:
-                metadata_node.attrib[f"{{{MODEL_NAMESPACE}}}type"] = (
-                    metadata_entry.datatype
-                )
-            metadata_node.text = metadata_entry.value
+                # Cache datatype as well
+                metadata_datatype = str(metadata_entry.datatype)
+                metadata_node.attrib[f"{{{MODEL_NAMESPACE}}}type"] = metadata_datatype
+            metadata_node.text = metadata_value
 
     def format_transformation(self, transformation: mathutils.Matrix) -> str:
         """
@@ -643,8 +650,10 @@ class Export3MF(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
                 triangle_material = material_slots[triangle.material_index].material
                 if triangle_material is not None:
                     # Convert to index in our global list.
+                    # Cache material name to protect Unicode characters from garbage collection
+                    triangle_material_name = str(triangle_material.name)
                     material_index = self.material_name_to_index[
-                        triangle_material.name
+                        triangle_material_name
                     ]
                     if material_index != object_material_list_index:
                         # Not equal to the index that our parent object was written with, so we must override it here.
