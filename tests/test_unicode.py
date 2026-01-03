@@ -113,11 +113,12 @@ class UnicodeMaterialNamesTests(Blender3mfTestCase):
 
             ns = {'m': 'http://schemas.microsoft.com/3dmanufacturing/core/2015/02'}
             materials = root.findall('.//m:base', ns)
-            
+
             # Find material with our name - check both with and without namespace prefix
             found = False
             for mat in materials:
-                name = mat.get('{http://schemas.microsoft.com/3dmanufacturing/core/2015/02}name') or mat.get('name')
+                name = mat.get('{http://schemas.microsoft.com/3dmanufacturing/core/2015/02}name')
+                name = name or mat.get('name')
                 if name == "红色材料":
                     found = True
                     break
@@ -196,11 +197,12 @@ class UnicodeMetadataTests(Blender3mfTestCase):
 
             ns = {'m': 'http://schemas.microsoft.com/3dmanufacturing/core/2015/02'}
             items = root.findall('.//m:item', ns)
-            
+
             # Check if any item has the Unicode partnumber - check both with and without namespace prefix
             found = False
             for item in items:
-                partnumber = item.get('{http://schemas.microsoft.com/3dmanufacturing/core/2015/02}partnumber') or item.get('partnumber')
+                partnumber = item.get('{http://schemas.microsoft.com/3dmanufacturing/core/2015/02}partnumber')
+                partnumber = partnumber or item.get('partnumber')
                 if partnumber == "零件-001-型号甲":
                     found = True
                     break

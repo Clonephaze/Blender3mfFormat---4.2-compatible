@@ -235,7 +235,7 @@ class TestMetadata(unittest.TestCase):
             preserve=True,
             datatype="xs:string",
             value=korean_value)
-        
+
         # Store again with same Unicode value - should be compatible
         self.metadata["테스트"] = io_mesh_3mf.metadata.MetadataEntry(
             name="테스트",
@@ -255,7 +255,7 @@ class TestMetadata(unittest.TestCase):
             preserve=True,
             datatype="xs:string",
             value="値一")
-        
+
         # Store again with different Unicode value - should conflict
         self.metadata["項目"] = io_mesh_3mf.metadata.MetadataEntry(
             name="項目",
