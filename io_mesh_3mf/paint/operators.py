@@ -651,9 +651,15 @@ class MMU_OT_fix_falloff(bpy.types.Operator):
     def execute(self, context):
         brush = context.tool_settings.image_paint.brush
         if brush:
-            brush.curve_distance_falloff_preset = "CONSTANT"
-            self.report({"INFO"}, "Brush falloff set to Constant")
-        return {"FINISHED"}
+            try:
+                if hasattr(brush, "curve_distance_falloff_preset"):
+                    brush.curve_distance_falloff_preset = "CONSTANT"
+                else:
+                    brush.curve_preset = "CONSTANT"
+                self.report({"INFO"}, "Brush falloff set to Constant")
+            except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+                self.report({"WARNING"}, f"Failed to set brush falloff: {e}")
+            return {"FINISHED"}
 
 
 class MMU_OT_switch_to_paint(bpy.types.Operator):

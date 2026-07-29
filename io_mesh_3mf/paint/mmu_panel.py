@@ -303,7 +303,10 @@ class VIEW3D_PT_mmu_paint(bpy.types.Panel):
             if brush:
                 is_constant = False
                 try:
-                    is_constant = brush.curve_distance_falloff_preset == "CONSTANT"
+                    if hasattr(brush, "curve_distance_falloff_preset"):
+                        is_constant = brush.curve_distance_falloff_preset == "CONSTANT"
+                    else:
+                        is_constant = brush.curve_preset == "CONSTANT"
                 except AttributeError:
                     pass
 

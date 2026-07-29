@@ -344,7 +344,13 @@ def _configure_paint_brush(context):
     if brush:
         brush.blend = "MIX"
         brush.strength = 1.0
-        brush.curve_distance_falloff_preset = "CONSTANT"
+        try:
+            if hasattr(brush, "curve_distance_falloff_preset"):
+                brush.curve_distance_falloff_preset = "CONSTANT"
+            else:
+                brush.curve_preset = "CONSTANT"
+        except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+            print(f"Failed to set brush falloff: {e}")
 
     return brush
 
