@@ -62,28 +62,27 @@ from __future__ import annotations
 import os
 import xml.etree.ElementTree
 import zipfile
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
-import bpy
+import bpy  # type: ignore
 
+from .common.annotations import Annotations
 from .common.constants import (
-    RELS_MIMETYPE,
+    MATERIAL_NAMESPACE,
     MODEL_MIMETYPE,
     MODEL_NAMESPACES,
+    RELS_MIMETYPE,
     SUPPORTED_EXTENSIONS,
-    MATERIAL_NAMESPACE,
 )
 from .common.extensions import ExtensionManager
-from .common.logging import debug, warn, error
+from .common.logging import debug, error, warn
 from .common.metadata import Metadata, MetadataEntry
-from .common.annotations import Annotations
 from .common.units import (
     blender_to_metre,
-    threemf_to_metre,
     export_unit_scale,
+    threemf_to_metre,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # API Version & Registry
@@ -140,6 +139,7 @@ API_CAPABILITIES = frozenset(
         "subdivision_depth",  # Paint segmentation subdivision depth control
         "flatten_hierarchy",  # Option to flatten parented meshes into top-level build items (export)
         "modifier_parts",  # Orca/BambuStudio modifier part subtypes (import, export, inspect)
+        "slicer_profile",  # Named slicer profile selection (export)
     }
 )
 
@@ -199,7 +199,7 @@ def is_available() -> bool:
     # — safe because if we're executing this code the module IS loaded.
     try:
         _register_api()
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
     return _REGISTRY_KEY in bpy.app.driver_namespace
 
@@ -246,10 +246,10 @@ def has_capability(capability: str) -> bool:
     return capability in API_CAPABILITIES
 
 
-def check_version(minimum: Tuple[int, int, int]) -> bool:
+def check_version(minimum: tuple[int, int, int]) -> bool:
     """Check if the API version meets a minimum requirement.
 
-    :param minimum: Tuple of (major, minor, patch) minimum version.
+    :param minimum: tuple of (major, minor, patch) minimum version.
     :return: True if API_VERSION >= minimum.
 
     Example::
@@ -265,38 +265,34 @@ def check_version(minimum: Tuple[int, int, int]) -> bool:
 # Auto-register when this module is imported (deferred to first use for safety)
 try:
     _register_api()
-except Exception:
-    pass  # Blender may not be fully initialized during startup
+except Exception:  # noqa: BLE001
+    debug("API auto-register deferred: Blender not fully initialized")
 
 
 __all__ = [
-    # --- API discovery & versioning ---
+    "API_CAPABILITIES",
     "API_VERSION",
     "API_VERSION_STRING",
-    "API_CAPABILITIES",
-    "is_available",
+    "ExportResult",
+    "ImportResult",
+    "InspectResult",
+    "batch_export",
+    "batch_import",
+    "check_version",
+    "colors",
+    "components",
+    "export_3mf",
+    "extensions",
     "get_api",
     "has_capability",
-    "check_version",
-    # --- Core functions ---
     "import_3mf",
-    "export_3mf",
     "inspect_3mf",
-    "batch_import",
-    "batch_export",
-    # --- Result types ---
-    "ImportResult",
-    "ExportResult",
-    "InspectResult",
-    # --- Building-block sub-namespaces ---
-    "colors",
-    "types",
-    "segmentation",
-    "units",
-    "extensions",
-    "xml_tools",
+    "is_available",
     "metadata",
-    "components",
+    "segmentation",
+    "types",
+    "units",
+    "xml_tools",
 ]
 
 
@@ -312,14 +308,14 @@ class ImportResult:
     Attributes:
         status: ``"FINISHED"`` on success, ``"CANCELLED"`` on failure.
         num_loaded: Number of objects successfully imported.
-        objects: List of ``bpy.types.Object`` instances created during import.
+        objects: list of ``bpy.types.Object`` instances created during import.
         warnings: Accumulated warning messages (if any).
     """
 
     status: str = "FINISHED"
     num_loaded: int = 0
-    objects: List = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    objects: list = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -336,7 +332,7 @@ class ExportResult:
     status: str = "FINISHED"
     num_written: int = 0
     filepath: str = ""
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -374,10 +370,10 @@ class InspectResult:
             - ``"path"`` — internal archive path
             - ``"contenttype"`` — MIME type string
 
-        extensions_used: Set of namespace URIs for extensions referenced
+        extensions_used: set of namespace URIs for extensions referenced
             in the model's ``requiredextensions`` / ``recommendedextensions``.
         vendor_format: Detected slicer vendor format (``"orca"`` / ``None``).
-        archive_files: List of all file paths inside the ZIP archive.
+        archive_files: list of all file paths inside the ZIP archive.
         num_objects: Total number of ``<object>`` resources.
         num_triangles_total: Sum of all triangle counts across objects.
         num_vertices_total: Sum of all vertex counts across objects.
@@ -395,18 +391,18 @@ class InspectResult:
     status: str = "OK"
     error_message: str = ""
     unit: str = ""
-    metadata: Dict[str, str] = field(default_factory=dict)
-    objects: List[Dict] = field(default_factory=list)
-    materials: List[Dict] = field(default_factory=list)
-    textures: List[Dict] = field(default_factory=list)
-    extensions_used: Set[str] = field(default_factory=set)
-    vendor_format: Optional[str] = None
-    archive_files: List[str] = field(default_factory=list)
+    metadata: dict[str, str] = field(default_factory=dict)
+    objects: list[dict] = field(default_factory=list)
+    materials: list[dict] = field(default_factory=list)
+    textures: list[dict] = field(default_factory=list)
+    extensions_used: set[str] = field(default_factory=set)
+    vendor_format: str | None = None
+    archive_files: list[str] = field(default_factory=list)
     num_objects: int = 0
     num_triangles_total: int = 0
     num_vertices_total: int = 0
-    part_subtypes: List[Dict] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    part_subtypes: list[dict] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -451,7 +447,7 @@ def inspect_3mf(filepath: str) -> InspectResult:
     # --- Open archive -------------------------------------------------------
     try:
         archive = zipfile.ZipFile(filepath, "r")
-    except (zipfile.BadZipFile, EnvironmentError) as e:
+    except (zipfile.BadZipFile, OSError) as e:
         result.status = "ERROR"
         result.error_message = f"Unable to read archive: {e}"
         return result
@@ -461,7 +457,7 @@ def inspect_3mf(filepath: str) -> InspectResult:
     # --- Find model files ---------------------------------------------------
     # Look for [Content_Types].xml to resolve MIME types, but fall back to
     # scanning for *.model files if the content-types file is missing.
-    model_paths: List[str] = []
+    model_paths: list[str] = []
     for name in result.archive_files:
         lower = name.lower()
         if lower.endswith(".model"):
@@ -594,7 +590,7 @@ def inspect_3mf(filepath: str) -> InspectResult:
                             "name": part_name,
                         }
                     )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             result.warnings.append(f"Could not parse model_settings.config: {e}")
 
     archive.close()
@@ -620,10 +616,10 @@ def import_3mf(
     paint_uv_method: str = "SMART",
     paint_texture_size: int = 0,
     scene_unit: str = "KEEP",
-    target_collection: Optional[str] = None,
-    on_progress: Optional[ProgressCallback] = None,
-    on_warning: Optional[WarningCallback] = None,
-    on_object_created: Optional[ObjectCreatedCallback] = None,
+    target_collection: str | None = None,
+    on_progress: ProgressCallback | None = None,
+    on_warning: WarningCallback | None = None,
+    on_object_created: ObjectCreatedCallback | None = None,
 ) -> ImportResult:
     """Import a 3MF file into the current Blender scene.
 
@@ -644,7 +640,7 @@ def import_3mf(
     :param paint_uv_method: ``"SMART"`` (default) or ``"LIGHTMAP"``.
         Smart UV groups adjacent faces; Lightmap gives each face unique space.
     :param paint_texture_size: Override texture resolution (0 = auto).
-    :param scene_unit: Set the Blender scene unit after import.
+    :param scene_unit: set the Blender scene unit after import.
         ``"KEEP"`` (default) leaves scene units unchanged.
         ``"FILE"`` sets units to match the unit declared in the 3MF file.
         Any Blender length unit identifier (e.g. ``"MILLIMETERS"``, ``"INCHES"``) sets it directly.
@@ -652,33 +648,33 @@ def import_3mf(
         imported objects into.  If *None*, objects are added to the active
         collection.  If the named collection does not exist it will be created
         and linked to the scene.
-    :param on_progress: Optional ``(percentage: int, message: str)`` callback.
-    :param on_warning: Optional ``(message: str)`` callback fired for each warning.
-    :param on_object_created: Optional callback fired after each Blender
+    :param on_progress: optional ``(percentage: int, message: str)`` callback.
+    :param on_warning: optional ``(message: str)`` callback fired for each warning.
+    :param on_object_created: optional callback fired after each Blender
         object is built.  Receives ``(blender_object, resource_id)`` arguments.
     :return: :class:`ImportResult` with status, loaded count, and object list.
     """
-    from .import_3mf.context import ImportContext, ImportOptions
-    from .import_3mf import archive as archive_mod
-    from .import_3mf import geometry as geometry_mod
+    from .import_3mf import archive as archive_mod  # noqa: I001
     from .import_3mf import builder as builder_mod
+    from .import_3mf import geometry as geometry_mod
+    from .import_3mf.context import ImportContext, ImportOptions
+    from .import_3mf.materials import (
+        extract_textures_from_archive as _extract_textures_impl,
+        read_composite_materials as _read_composite_impl,
+        read_materials as _read_materials_impl,
+        read_multiproperties as _read_multiproperties_impl,
+        read_pbr_metallic_properties as _read_pbr_metallic_impl,
+        read_pbr_specular_properties as _read_pbr_specular_impl,
+        read_pbr_texture_display_properties as _read_pbr_texture_display_impl,
+        read_pbr_translucent_properties as _read_pbr_translucent_impl,
+        read_texture_groups as _read_texture_groups_impl,
+        read_textures as _read_textures_impl,
+        store_passthrough_materials as _store_passthrough_impl,
+    )
     from .import_3mf.scene import apply_grid_layout
     from .import_3mf.slicer import (
         detect_vendor,
         read_all_slicer_colors,
-    )
-    from .import_3mf.materials import (
-        read_materials as _read_materials_impl,
-        read_textures as _read_textures_impl,
-        read_texture_groups as _read_texture_groups_impl,
-        extract_textures_from_archive as _extract_textures_impl,
-        read_pbr_metallic_properties as _read_pbr_metallic_impl,
-        read_pbr_specular_properties as _read_pbr_specular_impl,
-        read_pbr_translucent_properties as _read_pbr_translucent_impl,
-        read_pbr_texture_display_properties as _read_pbr_texture_display_impl,
-        read_composite_materials as _read_composite_impl,
-        read_multiproperties as _read_multiproperties_impl,
-        store_passthrough_materials as _store_passthrough_impl,
     )
 
     filepath = os.path.abspath(filepath)
@@ -750,7 +746,7 @@ def import_3mf(
     # --- Read archive -------------------------------------------------------
     try:
         files_by_content_type = archive_mod.read_archive(ctx, filepath)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         error(f"Failed to read archive {filepath}: {e}")
         result.status = "CANCELLED"
         # Restore collection.
@@ -931,13 +927,14 @@ def export_3mf(
     flatten_hierarchy: bool = False,
     mmu_slicer_format: str = "ORCA",
     subdivision_depth: int = 7,
+    slicer_profile: str = "NONE",
     thumbnail_mode: str = "AUTO",
     thumbnail_resolution: int = 256,
     thumbnail_image: str = "",
-    project_template: Optional[str] = None,
-    object_settings: Optional[Dict] = None,
-    on_progress: Optional[ProgressCallback] = None,
-    on_warning: Optional[WarningCallback] = None,
+    project_template: str | None = None,
+    object_settings: dict | None = None,
+    on_progress: ProgressCallback | None = None,
+    on_warning: WarningCallback | None = None,
     show_progress_window: bool = False,
     progress_mode: str = "NONE",
 ) -> ExportResult:
@@ -978,6 +975,10 @@ def export_3mf(
         *use_orca_format* is ``"PAINT"``).
     :param subdivision_depth: Maximum recursive subdivision depth for paint
         segmentation (4–10, default 7). Higher = finer detail but slower.
+    :param slicer_profile: Name of a saved slicer profile to embed in the
+        archive (e.g. ``"My Bambu X1C Profile"``), or ``"NONE"`` (default)
+        to omit profile data.  The profile must exist in the addon's slicer
+        profile storage.  Only applied by the Orca and Prusa exporters.
     :param thumbnail_mode: ``"AUTO"`` (render clean preview), ``"CUSTOM"``
         (use *thumbnail_image*), or ``"NONE"`` (no thumbnail).
     :param thumbnail_resolution: Width and height in pixels for AUTO mode
@@ -1010,8 +1011,8 @@ def export_3mf(
                 # other objects use project defaults
             }
 
-    :param on_progress: Optional ``(percentage: int, message: str)`` callback.
-    :param on_warning: Optional ``(message: str)`` callback for warnings.
+    :param on_progress: optional ``(percentage: int, message: str)`` callback.
+    :param on_warning: optional ``(message: str)`` callback for warnings.
     :param show_progress_window: Deprecated, has no effect.
     :param progress_mode: Controls whether to show the in-viewport progress bar.
 
@@ -1022,13 +1023,13 @@ def export_3mf(
         The *on_progress* callback fires regardless of this setting.
     :return: :class:`ExportResult` with status, written count, and filepath.
     """
-    from .export_3mf.context import ExportContext, ExportOptions
     from .export_3mf.archive import create_archive
     from .export_3mf.components import collect_mesh_objects
+    from .export_3mf.context import ExportContext, ExportOptions
     from .export_3mf.geometry import check_non_manifold_geometry
-    from .export_3mf.standard import StandardExporter
     from .export_3mf.orca import OrcaExporter
     from .export_3mf.prusa import PrusaExporter
+    from .export_3mf.standard import StandardExporter
 
     filepath = os.path.abspath(filepath)
     result = ExportResult(filepath=filepath)
@@ -1043,7 +1044,7 @@ def export_3mf(
 
     _pw = None
     if _raw_mode != "NONE":
-        from .progress import ProgressReporter, PHASES, get_progress_mode as _gpm
+        from .progress import PHASES, ProgressReporter, get_progress_mode as _gpm  # noqa: I001
 
         _filename = os.path.basename(filepath)
         _resolved_mode = _gpm(
@@ -1061,13 +1062,15 @@ def export_3mf(
         # Wrap on_progress so both the caller's callback and the reporter update.
         _caller_on_progress = on_progress
 
-        def on_progress(pct: int, msg: str) -> None:  # type: ignore[misc]
+        def _on_progress_wrapped(pct: int, msg: str) -> None:
             _phases = PHASES["export"]
             _n = len(_phases)
             _phase_idx = min(int(pct / 100 * _n), _n - 1)
             _pw.update(pct / 100, _phase_idx, msg)
             if _caller_on_progress is not None:
                 _caller_on_progress(pct, msg)
+
+        on_progress = _on_progress_wrapped
 
     if on_progress:
         on_progress(0, "Starting export…")
@@ -1085,6 +1088,7 @@ def export_3mf(
         flatten_hierarchy=flatten_hierarchy,
         mmu_slicer_format=mmu_slicer_format,
         subdivision_depth=subdivision_depth,
+        slicer_profile=slicer_profile,
         thumbnail_mode=thumbnail_mode,
         thumbnail_resolution=thumbnail_resolution,
         thumbnail_image=thumbnail_image,
@@ -1200,7 +1204,7 @@ def export_3mf(
         has_materials = any(len(obj.material_slots) >= 1 for obj in mesh_objects)
 
     # Dispatch to exporter.
-    try:  # noqa: SIM105  (must keep _pw.finish() in finally)
+    try:  # must keep _pw.finish() in finally
         try:
             if use_orca_format == "PAINT":
                 if mmu_slicer_format == "ORCA":
@@ -1244,7 +1248,7 @@ def export_3mf(
 
             status_set = exporter.execute(context, archive, blender_objects, scale)
             result.status = next(iter(status_set)) if status_set else "FINISHED"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error(f"Export failed: {e}")
             result.status = "CANCELLED"
             result.warnings.append(str(e))
@@ -1271,11 +1275,11 @@ def export_3mf(
 def batch_import(
     filepaths: Sequence[str],
     *,
-    on_progress: Optional[ProgressCallback] = None,
-    on_warning: Optional[WarningCallback] = None,
-    on_object_created: Optional[ObjectCreatedCallback] = None,
+    on_progress: ProgressCallback | None = None,
+    on_warning: WarningCallback | None = None,
+    on_object_created: ObjectCreatedCallback | None = None,
     **import_kwargs,
-) -> List[ImportResult]:
+) -> list[ImportResult]:
     """Import multiple 3MF files in sequence with per-file error isolation.
 
     Each file is imported independently — a failure in one file does not
@@ -1284,13 +1288,13 @@ def batch_import(
     and will be applied to every file.
 
     :param filepaths: Sequence of ``.3mf`` file paths to import.
-    :param on_progress: Optional global progress callback.  Receives
+    :param on_progress: optional global progress callback.  Receives
         ``(percentage, message)`` where percentage spans 0-100 across
         *all* files.
     :param on_warning: Warning callback forwarded to each :func:`import_3mf` call.
     :param on_object_created: Object-created callback forwarded to each call.
     :param import_kwargs: Keyword arguments forwarded to :func:`import_3mf`.
-    :return: List of :class:`ImportResult`, one per input file (same order).
+    :return: list of :class:`ImportResult`, one per input file (same order).
 
     Example::
 
@@ -1302,19 +1306,19 @@ def batch_import(
         total = sum(r.num_loaded for r in results)
         print(f"Imported {total} objects total")
     """
-    results: List[ImportResult] = []
+    results: list[ImportResult] = []
     total = len(filepaths)
 
     for idx, fp in enumerate(filepaths):
         # Per-file progress wrapper.
-        file_progress: Optional[ProgressCallback] = None
+        file_progress: ProgressCallback | None = None
         if on_progress:
             base_pct = int((idx / total) * 100)
             span_pct = int(100 / total) if total else 100
 
-            def _file_progress(pct: int, msg: str, _base=base_pct, _span=span_pct):
+            def _file_progress(pct: int, msg: str, _base=base_pct, _span=span_pct, _idx=idx):
                 overall = _base + int(pct * _span / 100)
-                on_progress(min(overall, 100), f"[{idx + 1}/{total}] {msg}")
+                on_progress(min(overall, 100), f"[{_idx + 1}/{total}] {msg}")
 
             file_progress = _file_progress
 
@@ -1326,7 +1330,7 @@ def batch_import(
                 on_object_created=on_object_created,
                 **import_kwargs,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error(f"batch_import: Failed on {fp}: {e}")
             r = ImportResult(status="CANCELLED", warnings=[str(e)])
         results.append(r)
@@ -1338,12 +1342,12 @@ def batch_import(
 
 
 def batch_export(
-    items: Sequence[Tuple[str, Optional[List]]],
+    items: Sequence[tuple[str, list | None]],
     *,
-    on_progress: Optional[ProgressCallback] = None,
-    on_warning: Optional[WarningCallback] = None,
+    on_progress: ProgressCallback | None = None,
+    on_warning: WarningCallback | None = None,
     **export_kwargs,
-) -> List[ExportResult]:
+) -> list[ExportResult]:
     """Export multiple 3MF files in sequence with per-file error isolation.
 
     Each item is a ``(filepath, objects)`` tuple.  If *objects* is ``None``,
@@ -1351,10 +1355,10 @@ def batch_export(
     :func:`export_3mf`.
 
     :param items: Sequence of ``(filepath, objects_or_None)`` tuples.
-    :param on_progress: Optional global progress callback.
+    :param on_progress: optional global progress callback.
     :param on_warning: Warning callback forwarded to each :func:`export_3mf` call.
     :param export_kwargs: Keyword arguments forwarded to :func:`export_3mf`.
-    :return: List of :class:`ExportResult`, one per item (same order).
+    :return: list of :class:`ExportResult`, one per item (same order).
 
     Example::
 
@@ -1365,18 +1369,18 @@ def batch_export(
             ("spheres.3mf", spheres),
         ], use_orca_format="AUTO")
     """
-    results: List[ExportResult] = []
+    results: list[ExportResult] = []
     total = len(items)
 
     for idx, (fp, objs) in enumerate(items):
-        file_progress: Optional[ProgressCallback] = None
+        file_progress: ProgressCallback | None = None
         if on_progress:
             base_pct = int((idx / total) * 100)
             span_pct = int(100 / total) if total else 100
 
-            def _file_progress(pct: int, msg: str, _base=base_pct, _span=span_pct):
+            def _file_progress(pct: int, msg: str, _base=base_pct, _span=span_pct, _idx=idx):
                 overall = _base + int(pct * _span / 100)
-                on_progress(min(overall, 100), f"[{idx + 1}/{total}] {msg}")
+                on_progress(min(overall, 100), f"[{_idx + 1}/{total}] {msg}")
 
             file_progress = _file_progress
 
@@ -1388,7 +1392,7 @@ def batch_export(
                 on_warning=on_warning,
                 **export_kwargs,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error(f"batch_export: Failed on {fp}: {e}")
             r = ExportResult(status="CANCELLED", filepath=fp, warnings=[str(e)])
         results.append(r)
@@ -1418,7 +1422,7 @@ def _find_layer_collection(
     return None
 
 
-def _resolve_prefixes(root, prefixes_str: str) -> Set[str]:
+def _resolve_prefixes(root, prefixes_str: str) -> set[str]:
     """Resolve extension prefix strings to namespace URIs."""
     from .common.constants import PRODUCTION_NAMESPACE
 
@@ -1436,7 +1440,7 @@ def _resolve_prefixes(root, prefixes_str: str) -> Set[str]:
         "slic3rpe": "http://schemas.slic3r.org/3mf/2017/06",
     }
     prefix_to_ns.update({k: v for k, v in known.items() if k not in prefix_to_ns})
-    resolved: Set[str] = set()
+    resolved: set[str] = set()
     for prefix in prefixes_str.split():
         prefix = prefix.strip()
         if not prefix:
@@ -1517,7 +1521,7 @@ def _apply_scene_unit_api(
     scene_unit: str,
 ) -> None:
     """Apply the scene_unit setting to context.scene.unit_settings."""
-    from .import_3mf.operator import _THREEMF_TO_BLENDER_UNIT, _BLENDER_UNIT_SYSTEM
+    from .import_3mf.operator import _BLENDER_UNIT_SYSTEM, _THREEMF_TO_BLENDER_UNIT
 
     if scene_unit == "KEEP":
         return
@@ -1587,23 +1591,11 @@ def _activate_extensions_api(
 #   from io_mesh_3mf.api import segmentation
 #   tree = segmentation.decode_segmentation_string("A3F0")
 
-from .common import colors  # hex_to_rgb, rgb_to_hex, srgb_to_linear, ...  # noqa: E402
-from .common import (
-    types,
-)  # ResourceObject, Component, ResourceMaterial, ... # noqa: E402
-from .common import (
-    segmentation,
-)  # SegmentationDecoder, SegmentationEncoder, ... # noqa: E402
-from .common import (
-    units,
-)  # blender_to_metre, threemf_to_metre, import_unit_scale, ... # noqa: E402
-from .common import (
-    extensions,
-)  # ExtensionManager, Extension, MATERIALS_EXTENSION, ... # noqa: E402
-from .common import (
-    xml as xml_tools,
-)  # parse_transformation, format_transformation, ... # noqa: E402
-from .common import metadata  # Metadata, MetadataEntry # noqa: E402
-from .export_3mf import (
-    components,
-)  # detect_linked_duplicates, ComponentGroup, ... # noqa: E402
+from .common import colors  # noqa: I001 -- sorted correctly; inline comments confuse ruff
+from .common import extensions  # ExtensionManager, Extension, MATERIALS_EXTENSION, ...
+from .common import metadata  # Metadata, MetadataEntry
+from .common import segmentation  # SegmentationDecoder, SegmentationEncoder, ...
+from .common import types  # ResourceObject, Component, ResourceMaterial, ...
+from .common import units  # blender_to_metre, threemf_to_metre, import_unit_scale, ...
+from .common import xml as xml_tools  # parse_transformation, format_transformation, ...
+from .export_3mf import components  # detect_linked_duplicates, ComponentGroup, ...
