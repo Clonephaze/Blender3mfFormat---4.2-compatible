@@ -1,0 +1,20 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build 3MF extension",
+      "type": "shell",
+      "command": "blender",
+      "args": [
+        "--command",
+        "extension",
+        "build",
+        "--source-dir",
+        ".\\io_mesh_3mf",
+      ],
+      "problemMatcher": []
+    }
+  ]
+}
