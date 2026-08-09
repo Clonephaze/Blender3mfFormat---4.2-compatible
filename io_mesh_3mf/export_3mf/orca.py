@@ -125,6 +125,9 @@ class OrcaExporter(BaseExporter):
         ctx.extension_manager.activate(ORCA_EXTENSION.namespace)
         debug("Activated Orca Slicer extensions: Production + BambuStudio")
 
+        from .segmentation import clear_export_state_cache
+        clear_export_state_cache()
+
         # Register namespaces
         xml.etree.ElementTree.register_namespace("", MODEL_NAMESPACE)
         xml.etree.ElementTree.register_namespace("p", PRODUCTION_NAMESPACE)

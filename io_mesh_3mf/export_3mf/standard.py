@@ -352,6 +352,9 @@ class StandardExporter(BaseExporter):
         """
         ctx = self.ctx
 
+        from .segmentation import clear_export_state_cache
+        clear_export_state_cache()
+
         # Register all active extension namespaces with ElementTree
         ctx.extension_manager.register_namespaces(xml.etree.ElementTree)
 

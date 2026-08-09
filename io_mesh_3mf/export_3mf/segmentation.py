@@ -32,6 +32,15 @@ from ..common.logging import debug, DEBUG_MODE
 # Maximum subdivision depth (7 gives 4^7 = 16384 potential leaf nodes per triangle)
 MAX_SUBDIVISION_DEPTH = 7
 
+# Keyed by (image.name, w, h, frozenset(color_to_extruder.items()), default_extruder).
+# Shared across all objects in one export run; cleared by clear_export_state_cache().
+_state_map_cache: Dict[tuple, np.ndarray] = {}
+
+
+def clear_export_state_cache() -> None:
+    """Discard cached state maps from the previous export run."""
+    _state_map_cache.clear()
+
 # Maximum iterations for adaptive mesh pre-subdivision
 _MAX_SUBDIV_ITERATIONS = 6
 
@@ -338,15 +347,6 @@ def texture_to_segmentation(
         mesh = obj.data
     width, height = image.size
 
-    # One-time read from Blender image into numpy for fast access.
-    debug(f"  Caching {width}x{height} texture data as numpy array...")
-    pixel_count = width * height * 4
-    pixels_flat = np.empty(pixel_count, dtype=np.float32)
-    image.pixels.foreach_get(pixels_flat)
-    pixels = pixels_flat.reshape(height, width, 4)
-    t_cache = time.perf_counter()
-    debug(f"  Cached pixels in {t_cache - t_start:.2f}s")
-
     color_to_extruder = {}
     debug(f"  Building color->extruder map from {len(extruder_colors)} colors:")
     for extruder, rgba in extruder_colors.items():
@@ -355,10 +355,28 @@ def texture_to_segmentation(
         debug(f"    Extruder {extruder}: RGB {rgb}")
     debug(f"  Default extruder: {default_extruder}")
 
-    # Pre-compute the entire texture to states (critical performance win).
-    debug(f"  Building state map ({width}x{height})...")
-    state_map = _build_state_map(pixels, color_to_extruder, default_extruder)
-    t_state = time.perf_counter()
+    # Re-use the state map when multiple objects share the same texture (e.g. puzzle pieces).
+    cache_key = (image.name, width, height, frozenset(color_to_extruder.items()), default_extruder)
+    if cache_key in _state_map_cache:
+        debug(f"  State map cache hit for '{image.name}' — skipping pixel read + build")
+        state_map = _state_map_cache[cache_key]
+        t_cache = t_start
+        t_state = t_start
+    else:
+        # One-time read from Blender image into numpy for fast access.
+        debug(f"  Caching {width}x{height} texture data as numpy array...")
+        pixel_count = width * height * 4
+        pixels_flat = np.empty(pixel_count, dtype=np.float32)
+        image.pixels.foreach_get(pixels_flat)
+        pixels = pixels_flat.reshape(height, width, 4)
+        t_cache = time.perf_counter()
+        debug(f"  Cached pixels in {t_cache - t_start:.2f}s")
+
+        # Pre-compute the entire texture to states (critical performance win).
+        debug(f"  Building state map ({width}x{height})...")
+        state_map = _build_state_map(pixels, color_to_extruder, default_extruder)
+        _state_map_cache[cache_key] = state_map
+        t_state = time.perf_counter()
 
     if DEBUG_MODE:
         unique_states = np.unique(state_map)
