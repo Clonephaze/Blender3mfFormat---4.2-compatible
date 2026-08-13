@@ -26,7 +26,7 @@ The output format is slicer-agnostic — works for both paint_color and mmu_segm
 
 import numpy as np
 from typing import Tuple, List, Dict
-from ..common.segmentation import SegmentationNode, SegmentationEncoder
+
 from ..common.logging import debug, DEBUG_MODE
 
 # Maximum subdivision depth (7 gives 4^7 = 16384 potential leaf nodes per triangle)
@@ -203,25 +203,25 @@ def _build_state_map(
     return state_map
 
 
-def _analyze_recursive(
+def _emit_nibble_leaf(nibbles: list, state: int) -> None:
+    if state >= 3:
+        nibbles.append(0b1100)
+        nibbles.append(state - 3)
+    else:
+        nibbles.append((state << 2) | 0)
+
+
+def _analyze_and_encode_direct(
     state_map: np.ndarray,
     width: int,
     height: int,
-    u0: float,
-    v0: float,
-    u1: float,
-    v1: float,
-    u2: float,
-    v2: float,
+    u0: float, v0: float,
+    u1: float, v1: float,
+    u2: float, v2: float,
     max_depth: int,
-) -> SegmentationNode:
-    """
-    Recursively analyze a triangle's segmentation from the pre-computed state map.
-
-    Insight: passing tuples and callbacks was expensive at this depth.
-    Inlining floats and sampling directly keeps recursion overhead low.
-    """
-    # Inline UV->pixel conversion with rounding to avoid bias.
+    nibbles: list,
+) -> int:
+    """Single-pass: analyze UV triangle and emit nibbles directly. Returns leaf state or -1."""
     wm1 = width - 1
     hm1 = height - 1
 
@@ -237,16 +237,13 @@ def _analyze_recursive(
     y2 = max(0, min(hm1, int(max(0.0, min(1.0, v2)) * hm1 + 0.5)))
     s2 = int(state_map[y2, x2])
 
-    # Even if corners match, interior stripes can cross a triangle.
-    # Use a barycentric grid whose density scales with the triangle's pixel
-    # footprint: ~0.5 steps per pixel up to N=40, minimum N=6.
-    # This guarantees sample spacing of ≤2px regardless of triangle size,
-    # so even narrow text strokes are reliably detected before the
-    # early-exit fires.
     if s0 == s1 == s2:
         u_span = max(u0, u1, u2) - min(u0, u1, u2)
         v_span = max(v0, v1, v2) - min(v0, v1, v2)
         pixel_span = max(u_span * wm1, v_span * hm1)
+        if pixel_span < 1.0:
+            _emit_nibble_leaf(nibbles, s0)
+            return s0
         N = max(6, min(int(pixel_span * 0.5 + 0.5), 40))
         uniform = True
         stop = False
@@ -264,29 +261,14 @@ def _analyze_recursive(
             if stop:
                 break
         if uniform:
-            return SegmentationNode(
-                state=s0,
-                split_sides=0,
-                special_side=0,
-                children=[],
-            )
+            _emit_nibble_leaf(nibbles, s0)
+            return s0
 
-    # Max depth reached: collapse to the most common corner state.
     if max_depth <= 0:
-        if s0 == s1 or s0 == s2:
-            return SegmentationNode(
-                state=s0, split_sides=0, special_side=0, children=[]
-            )
-        elif s1 == s2:
-            return SegmentationNode(
-                state=s1, split_sides=0, special_side=0, children=[]
-            )
-        else:
-            return SegmentationNode(
-                state=s0, split_sides=0, special_side=0, children=[]
-            )
+        best = s0 if (s0 == s1 or s0 == s2) else (s1 if s1 == s2 else s0)
+        _emit_nibble_leaf(nibbles, best)
+        return best
 
-    # Standard 3-edge split for recursive subdivision.
     m01u = (u0 + u1) * 0.5
     m01v = (v0 + v1) * 0.5
     m12u = (u1 + u2) * 0.5
@@ -295,31 +277,21 @@ def _analyze_recursive(
     m20v = (v2 + v0) * 0.5
 
     nd = max_depth - 1
-    c0 = _analyze_recursive(
-        state_map, width, height, u0, v0, m01u, m01v, m20u, m20v, nd
-    )
-    c1 = _analyze_recursive(
-        state_map, width, height, m01u, m01v, u1, v1, m12u, m12v, nd
-    )
-    c2 = _analyze_recursive(
-        state_map, width, height, m12u, m12v, u2, v2, m20u, m20v, nd
-    )
-    c3 = _analyze_recursive(
-        state_map, width, height, m01u, m01v, m12u, m12v, m20u, m20v, nd
-    )
+    save_pos = len(nibbles)
+    nibbles.append(0b0011)  # split_sides=3, special_side=0
 
-    if not c0.children and not c1.children and not c2.children and not c3.children:
-        if c0.state == c1.state == c2.state == c3.state:
-            return SegmentationNode(
-                state=c0.state, split_sides=0, special_side=0, children=[]
-            )
+    # Children in same order as SegmentationEncoder: c3 (center), c2, c1, c0.
+    rs3 = _analyze_and_encode_direct(state_map, width, height, m01u, m01v, m12u, m12v, m20u, m20v, nd, nibbles)
+    rs2 = _analyze_and_encode_direct(state_map, width, height, m12u, m12v, u2, v2, m20u, m20v, nd, nibbles)
+    rs1 = _analyze_and_encode_direct(state_map, width, height, m01u, m01v, u1, v1, m12u, m12v, nd, nibbles)
+    rs0 = _analyze_and_encode_direct(state_map, width, height, u0, v0, m01u, m01v, m20u, m20v, nd, nibbles)
 
-    return SegmentationNode(
-        state=c0.state if c0 else 0,
-        split_sides=3,
-        special_side=0,
-        children=[c3, c2, c1, c0],
-    )
+    if rs0 >= 0 and rs0 == rs1 == rs2 == rs3:
+        del nibbles[save_pos:]
+        _emit_nibble_leaf(nibbles, rs0)
+        return rs0
+
+    return -1
 
 
 def texture_to_segmentation(
@@ -389,21 +361,41 @@ def texture_to_segmentation(
     if not mesh.uv_layers or not mesh.uv_layers.active:
         return {}
 
-    uv_layer = mesh.uv_layers.active.data
     seg_strings = {}
 
-    # Use loop_triangles to handle both quads and triangles.
-    # mesh.polygons only has the original faces (quads for a default cube),
-    # while loop_triangles gives us the actual triangulated geometry.
     mesh.calc_loop_triangles()
     total_faces = len(mesh.loop_triangles)
     debug(
         f"  Processing {total_faces} triangles (max_depth={max_depth})..."
     )
 
-    encoder = SegmentationEncoder()
+    # Bulk-extract loop indices and UV data once — avoids per-element Python/C crossings.
+    tri_loops_flat = np.empty(total_faces * 3, dtype=np.int32)
+    mesh.loop_triangles.foreach_get("loops", tri_loops_flat)
+    tri_loops = tri_loops_flat.reshape(total_faces, 3)
 
-    for tri_idx, tri in enumerate(mesh.loop_triangles):
+    uv_flat = np.empty(len(mesh.loops) * 2, dtype=np.float32)
+    mesh.uv_layers.active.data.foreach_get("uv", uv_flat)
+    all_uvs = uv_flat.reshape(-1, 2)
+
+    # Precompute per-triangle depth cap: deepest subdivision needed = floor(log2(pixel_span)) + 1.
+    # Terrain/side triangles that cover only a few pixels waste most of the 4^7 budget.
+    _uv0s = all_uvs[tri_loops[:, 0]]
+    _uv1s = all_uvs[tri_loops[:, 1]]
+    _uv2s = all_uvs[tri_loops[:, 2]]
+    _ps = np.maximum(
+        (np.maximum(np.maximum(_uv0s[:, 0], _uv1s[:, 0]), _uv2s[:, 0]) -
+         np.minimum(np.minimum(_uv0s[:, 0], _uv1s[:, 0]), _uv2s[:, 0])) * (width - 1),
+        (np.maximum(np.maximum(_uv0s[:, 1], _uv1s[:, 1]), _uv2s[:, 1]) -
+         np.minimum(np.minimum(_uv0s[:, 1], _uv1s[:, 1]), _uv2s[:, 1])) * (height - 1),
+    )
+    tri_depths = np.where(
+        _ps < 1.0,
+        1,
+        np.clip(np.floor(np.log2(np.maximum(_ps, 1.0))).astype(np.int32) + 1, 1, max_depth),
+    ).tolist()
+
+    for tri_idx in range(total_faces):
         # Progress callback every 500 triangles
         if progress_callback and tri_idx > 0 and tri_idx % 500 == 0:
             progress_callback(tri_idx, total_faces, f"Segmentation: {tri_idx}/{total_faces}")
@@ -415,28 +407,23 @@ def texture_to_segmentation(
                 f"    {tri_idx}/{total_faces} ({rate:.0f}/s, ~{remaining:.0f}s left)"
             )
 
-        li = tri.loops
-        uv0 = uv_layer[li[0]].uv
-        uv1 = uv_layer[li[1]].uv
-        uv2 = uv_layer[li[2]].uv
+        li = tri_loops[tri_idx]
+        uv0 = all_uvs[li[0]]
+        uv1 = all_uvs[li[1]]
+        uv2 = all_uvs[li[2]]
 
-        tree = _analyze_recursive(
-            state_map,
-            width,
-            height,
-            uv0[0],
-            uv0[1],
-            uv1[0],
-            uv1[1],
-            uv2[0],
-            uv2[1],
-            max_depth,
+        nibbles: list = []
+        _leaf = _analyze_and_encode_direct(
+            state_map, width, height,
+            float(uv0[0]), float(uv0[1]),
+            float(uv1[0]), float(uv1[1]),
+            float(uv2[0]), float(uv2[1]),
+            tri_depths[tri_idx],
+            nibbles,
         )
-
-        if tree.children or tree.state != 0:
-            encoder._nibbles = []
-            hex_string = encoder.encode(tree)
-            if hex_string and hex_string != "0":
+        if nibbles:
+            hex_string = "".join(format(n, "X") for n in nibbles)[::-1]
+            if hex_string != "0":
                 seg_strings[tri_idx] = hex_string
 
     t_end = time.perf_counter()
