@@ -529,6 +529,30 @@ class StandardExporter(BaseExporter):
         ctx._progress_update(100, "Finalizing export...")
         return ctx.finalize_export(archive)
 
+    def _compute_centering_offset(
+        self,
+        blender_objects: List[bpy.types.Object],
+        scale_matrix: mathutils.Matrix,
+    ) -> mathutils.Matrix:
+        """Return a translation that moves the collective bounding box to XY center, Z=0."""
+        all_x, all_y, all_z = [], [], []
+        for obj in blender_objects:
+            if _is_object_excluded(obj, self.ctx) or obj.type != "MESH":
+                continue
+            m = scale_matrix @ obj.matrix_world
+            for corner in obj.bound_box:
+                v = m @ mathutils.Vector(corner)
+                all_x.append(v.x)
+                all_y.append(v.y)
+                all_z.append(v.z)
+        if not all_x:
+            return mathutils.Matrix.Identity(4)
+        return mathutils.Matrix.Translation((
+            -(min(all_x) + max(all_x)) / 2,
+            -(min(all_y) + max(all_y)) / 2,
+            -min(all_z),
+        ))
+
     def write_objects(
         self,
         root: xml.etree.ElementTree.Element,
@@ -544,6 +568,7 @@ class StandardExporter(BaseExporter):
         """
         ctx = self.ctx
         transformation = mathutils.Matrix.Scale(global_scale, 4)
+        transformation = self._compute_centering_offset(blender_objects, transformation) @ transformation
 
         # Detect linked duplicates if component optimization is enabled
         component_groups = {}

@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "ThreeMF_io"
-version = "2.7.6"
+version = "2.7.7"
 name = "3MF Import/Export"
 tagline = "Import and export 3D Manufacturing Format (3MF) files"
 maintainer = "Clonephaze"

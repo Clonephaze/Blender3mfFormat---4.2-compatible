@@ -364,6 +364,26 @@ class OrcaExporter(BaseExporter):
 
         debug(f"Export structure: {len(groups)} groups, {len(ungrouped)} ungrouped objects")
 
+        # Center all objects: XY midpoint → origin, Z floor → 0
+        scale_mat = mathutils.Matrix.Scale(global_scale, 4)
+        all_corners = [
+            scale_mat @ obj.matrix_world @ mathutils.Vector(corner)
+            for obj in mesh_objects
+            for corner in obj.bound_box
+        ]
+        if all_corners:
+            xs = [v.x for v in all_corners]
+            ys = [v.y for v in all_corners]
+            zs = [v.z for v in all_corners]
+            cx = -(min(xs) + max(xs)) / 2
+            cy = -(min(ys) + max(ys)) / 2
+            cz = -min(zs)
+            for od in object_data:
+                od["transformation"][0][3] += cx
+                od["transformation"][1][3] += cy
+                od["transformation"][2][3] += cz
+            debug(f"Applied centering offset ({cx:.2f}, {cy:.2f}, {cz:.2f}) mm")
+
         # Apply bed center offset to transformations (built-in template only)
         bed_offset_x, bed_offset_y = self._get_bed_center_offset()
 

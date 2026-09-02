@@ -658,7 +658,7 @@ def write_pbr_texture_display_properties(
     texture_ids = {}  # image path -> texture2d ID
     first_display_props_id = None  # Track first ID for basematerials linkage
 
-    def get_or_create_texture2d(tex_info: Optional[Dict], tex_type: str) -> str:
+    def get_or_create_texture2d(tex_info: dict | None, tex_type: str) -> str:
         """Helper to create texture2d resource and return its ID."""
         nonlocal next_resource_id
 
